@@ -30,7 +30,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
-#define DEMC							*((volatile uint32_t*) 0xE000EDFCU)
+#define DEMCR							*((volatile uint32_t*) 0xE000EDFCU)
 
 #define ITM_STIMULUS_PORT0				*((volatile uint32_t*) 0xE0000000)
 #define ITM_TRACE_EN					*((volatile uint32_t*) 0xE0000E00)
@@ -41,7 +41,7 @@ void ITM_SendChar(uint8_t ch)
 
 	ITM_TRACE_EN |= (1<<0);
 
-	WHILE(!(ITM_STIMULUS_PORT0 & 1));
+	while(!(ITM_STIMULUS_PORT0 & 1));
 
 	ITM_STIMULUS_PORT0 = ch;
 }

@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -372,7 +372,8 @@ void StartTask1(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	printf("Task-1 \n");
+    osDelay(1000);
   }
   /* USER CODE END 5 */
 }
@@ -390,7 +391,8 @@ void StartTask2(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	printf("Task-1 \n");
+    osDelay(1000);
   }
   /* USER CODE END StartTask2 */
 }
