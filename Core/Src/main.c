@@ -23,11 +23,26 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+//UART_HandleTypeDef huart2;
 
+uint8_t isRinging = 0;
+uint8_t LEDState = 0;
+uint8_t justStarted = 1;
+uint32_t beginTime;
+
+//uint8_t tx_buffer[5] = "oie\r\n";
+//uint8_t rx_indx;
+//uint8_t rx_data[2];
+//uint8_t rx_buffer[100];
+//uint8_t transfer_cplt;
+
+#define STDOUT_FILENO   1
+#define STDERR_FILENO   2
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -57,7 +72,7 @@ osThreadId_t Task2Handle;
 const osThreadAttr_t Task2_attributes = {
   .name = "Task2",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
 
@@ -72,7 +87,10 @@ void StartTask1(void *argument);
 void StartTask2(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+int _write(int file, uint8_t *ptr, int len);
+void blink_led(void);
+void read_button_fcn(void);
+void CMD(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -111,8 +129,9 @@ int main(void)
   MX_GPIO_Init();
   MX_ADC1_Init();
   MX_USART2_UART_Init();
-  /* USER CODE BEGIN 2 */
 
+  /* USER CODE BEGIN 2 */
+//  HAL_UART_Receive_IT(&huart2, rx_data, 1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -158,6 +177,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -336,7 +356,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LD2_Pin|Buzzer_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LD2_Pin|Buzzer_Pin|RedLED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -344,8 +364,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD2_Pin Buzzer_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin|Buzzer_Pin;
+  /*Configure GPIO pins : LD2_Pin Buzzer_Pin RedLED_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin|Buzzer_Pin|RedLED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -356,7 +376,130 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void CMD(void){
+   for(;;){
+        char recebido;
+        if (HAL_UART_Receive(&huart2, &recebido, 1, HAL_MAX_DELAY)==HAL_OK)
+            switch(recebido){
+            case 'V':
+            case 'v':
+            	Alarm_Start();
+            	HAL_UART_Transmit(&huart2, "interpreter alarm start\n\r", sizeof("alarm start\n\r"), HAL_MAX_DELAY);
+                break;
+            case 'Y':
+            case 'y':
+            	  Super_Alarm();
+                  HAL_UART_Transmit(&huart2, "interpreter alarm stop\n\r", sizeof("led Yellow Toggle\n\r"), HAL_MAX_DELAY);
+                break;
+            default:
+                HAL_UART_Transmit(&huart2, "invalid \n\r", sizeof("invalid \n\r"), HAL_MAX_DELAY);
+            }
 
+   }
+}
+
+void BlinkLED(int duration){
+
+	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	HAL_Delay(duration);
+	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+}
+
+int Blue_Button_Pressed(){
+
+	return HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
+}
+
+
+void Alarm_Start(){
+
+	while (Blue_Button_Pressed()) {
+		printf("Alarme Tocando\r\n");
+		HAL_GPIO_TogglePin(RedLED_GPIO_Port, RedLED_Pin);
+
+		HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+		HAL_Delay(200);
+
+	}
+	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, 0);
+	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	printf("Alarme Interrompido\r\n");
+	HAL_Delay(500);
+}
+
+void Super_Alarm(){
+	while (Blue_Button_Pressed()) {
+		printf("Alarme Tocando\r\n");
+		HAL_GPIO_TogglePin(RedLED_GPIO_Port, RedLED_Pin);
+
+		HAL_GPIO_TogglePin(Buzzer_GPIO_Port, Buzzer_Pin);
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+	}
+	HAL_GPIO_WritePin(Buzzer_GPIO_Port, Buzzer_Pin, 0);
+	HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+	printf("Alarme Interrompido\r\n");
+	HAL_Delay(500);
+}
+
+int _write(int file, uint8_t *ptr, int len) {
+	switch (file) {
+	case STDOUT_FILENO:
+		HAL_UART_Transmit(&huart2, ptr, len, HAL_MAX_DELAY);
+		break;
+
+	case STDERR_FILENO:
+		HAL_UART_Transmit(&huart2, ptr, len, HAL_MAX_DELAY);
+		break;
+
+	default:
+		return -1;
+	}
+
+	return len;
+}
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//  /* Prevent unused argument(s) compilation warning */
+//  UNUSED(huart);
+//
+//  /* NOTE : This function should not be modified, when the callback is needed,
+//            the HAL_UART_RxCpltCallback can be implemented in the user file.
+//   */
+//
+//  uint8_t i;
+//  if (huart->instance == USART2)
+//  {
+//	  if(rx_indx == 0)
+//	  {
+//		  for(i=0; i<100; i++)
+//		  {
+//			  rx_buffer[i] = 0;
+//			  Alarm_Start();
+//		  }
+//	  }
+//
+//	  if(rx_data[0] != 13)
+//	  {
+//		  rx_buffer[rx_indx++] = rx_data[0];
+//	  }
+//	  else
+//	  {
+//		  rx_indx = 0;
+//		  transfer_cplt = 1;
+//		  HAL_UART_Transmit($huart2, "\n\r", 2, 100);
+//		  if(!strcmp(rx_buffer, "a"))
+//		  {
+//			  Alarm_Start();
+//		  }
+//	  }
+//
+//	  HAL_UART_Receive_IT($huart2, rx_data, 1);
+//	  HAL_UART_Transmit(&huart2, strlen(rx_data), 100);
+//  }
+//}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartTask1 */
@@ -369,12 +512,33 @@ static void MX_GPIO_Init(void)
 void StartTask1(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-	printf("Task-1 \n");
-    osDelay(1000);
-  }
+	uint32_t largada;
+	int tempo = 0;
+
+	/* Infinite loop */
+	for(;;)
+	{
+	  while (Blue_Button_Pressed());
+
+			  while (!Blue_Button_Pressed());
+			  HAL_Delay(20);
+
+			  largada = HAL_GetTick();
+			  tempo += 5000;
+
+			  while (HAL_GetTick() < largada + tempo) {
+
+				  if (!Blue_Button_Pressed()){
+
+					  while(!Blue_Button_Pressed());
+					  HAL_Delay(20);
+
+					  tempo += 5000;
+				  }
+			  }
+
+			  Alarm_Start();
+	}
   /* USER CODE END 5 */
 }
 
@@ -388,12 +552,16 @@ void StartTask1(void *argument)
 void StartTask2(void *argument)
 {
   /* USER CODE BEGIN StartTask2 */
-  /* Infinite loop */
-  for(;;)
-  {
-	printf("Task-1 \n");
-    osDelay(1000);
-  }
+	  for(;;)
+	  {
+		CMD();
+		if (!Blue_Button_Pressed()) {
+			while(!Blue_Button_Pressed()) {
+				HAL_GPIO_WritePin(RedLED_GPIO_Port, RedLED_Pin, 1);
+			}
+			HAL_GPIO_WritePin(LD2_GPIO_Port, RedLED_Pin, 0);
+		}
+	  }
   /* USER CODE END StartTask2 */
 }
 
